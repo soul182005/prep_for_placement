@@ -1,0 +1,105 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String             @id @default(cuid())
+  name          String
+  email         String             @unique
+  passwordHash  String
+  avatarUrl     String?
+  createdAt     DateTime           @default(now())
+  resume        Resume?
+  aptitudeTests AptitudeAttempt[]
+  codingSessions CodingSession[]
+  interviewSessions InterviewSession[]
+  skillScores   SkillScore[]
+}
+
+model Resume {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  fileUrl     String
+  parsedJson  String?  // Stringified JSON metadata representing skills, experience, projects
+  aiFeedback  String?  // Strengths, Weaknesses, Suggestions
+  updatedAt   DateTime @updatedAt
+}
+
+model AptitudeQuestion {
+  id           String            @id @default(cuid())
+  category     String            // "quant" | "logical" | "verbal"
+  difficulty   String            // "easy" | "medium" | "hard"
+  questionText String
+  options      String[]          // Array of options
+  correctIndex Int
+  explanation  String?
+  attempts     AptitudeAttempt[]
+}
+
+model AptitudeAttempt {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  questionId    String
+  question      AptitudeQuestion @relation(fields: [questionId], references: [id])
+  selectedIndex Int
+  isCorrect     Boolean
+  timeTaken     Int              // seconds
+  attemptedAt   DateTime         @default(now())
+}
+
+model CodingProblem {
+  id           String          @id @default(cuid())
+  title        String
+  slug         String          @unique
+  difficulty   String          // "easy" | "medium" | "hard"
+  topic        String          // "arrays" | "dp" | "graphs"
+  description  String
+  starterCode  String          // JSON-serialized string of starter templates by language
+  testCases    String          // JSON-serialized string of { input, expectedOutput }
+  sessions     CodingSession[]
+}
+
+model CodingSession {
+  id            String        @id @default(cuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  problemId     String
+  problem       CodingProblem @relation(fields: [problemId], references: [id])
+  code          String
+  language      String
+  status        String        // "attempted" | "solved" | "given_up"
+  aiFeedback    String?
+  solvedAt      DateTime?
+  createdAt     DateTime      @default(now())
+}
+
+model InterviewSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  role        String   // "SDE-1" | "Data Analyst", etc.
+  mode        String   // "technical" | "hr" | "mixed"
+  transcript  String   // JSON string of conversational messages [{ role: "ai"|"user", content: "..." }]
+  aiScore     Int?     // 0-100 score
+  aiFeedback  String?  // Overall feedback explanation
+  duration    Int?     // seconds
+  createdAt   DateTime @default(now())
+}
+
+model SkillScore {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  skill     String   // "DSA" | "Aptitude" | "Communication" | "Resume"
+  score     Float    // 0.0 - 100.0 scale
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, skill])
+}

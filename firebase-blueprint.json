@@ -1,0 +1,158 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user registered in the app",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user ID" },
+        "name": { "type": "string", "description": "Candidate full name" },
+        "email": { "type": "string", "format": "email", "description": "Candidate email address" },
+        "avatarUrl": { "type": "string", "description": "Optional profile picture URL" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Registration time" }
+      },
+      "required": ["id", "name", "email", "createdAt"]
+    },
+    "Resume": {
+      "title": "Resume",
+      "description": "Holds parsed resume and AI comments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "parsedJson": { "type": "string" },
+        "aiFeedback": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "fileUrl", "updatedAt"]
+    },
+    "AptitudeQuestion": {
+      "title": "AptitudeQuestion",
+      "description": "Represents a multiple choice test item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string", "enum": ["quant", "logical", "verbal"] },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+        "questionText": { "type": "string" },
+        "options": { "type": "array" },
+        "correctIndex": { "type": "integer" },
+        "explanation": { "type": "string" }
+      },
+      "required": ["id", "category", "difficulty", "questionText", "options", "correctIndex"]
+    },
+    "AptitudeAttempt": {
+      "title": "AptitudeAttempt",
+      "description": "Record of a user taking an aptitude test item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "questionId": { "type": "string" },
+        "selectedIndex": { "type": "integer" },
+        "isCorrect": { "type": "boolean" },
+        "timeTaken": { "type": "number" },
+        "attemptedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "questionId", "selectedIndex", "isCorrect", "timeTaken", "attemptedAt"]
+    },
+    "CodingProblem": {
+      "title": "CodingProblem",
+      "description": "A coding challenge available in the sandbox",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+        "topic": { "type": "string" },
+        "description": { "type": "string" },
+        "starterCode": { "type": "string" },
+        "testCases": { "type": "string" }
+      },
+      "required": ["id", "title", "slug", "difficulty", "topic", "description", "starterCode", "testCases"]
+    },
+    "CodingSession": {
+      "title": "CodingSession",
+      "description": "User progress tracker for a coding challenge",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "problemId": { "type": "string" },
+        "code": { "type": "string" },
+        "language": { "type": "string" },
+        "status": { "type": "string", "enum": ["attempted", "solved", "given_up"] },
+        "aiFeedback": { "type": "string" },
+        "solvedAt": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "problemId", "code", "language", "status", "createdAt"]
+    },
+    "InterviewSession": {
+      "title": "InterviewSession",
+      "description": "Detailed log database of micro-mock chats",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "role": { "type": "string" },
+        "mode": { "type": "string", "enum": ["technical", "hr", "mixed"] },
+        "transcript": { "type": "string" },
+        "aiScore": { "type": "number" },
+        "aiFeedback": { "type": "string" },
+        "duration": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "role", "mode", "transcript", "createdAt"]
+    },
+    "SkillScore": {
+      "title": "SkillScore",
+      "description": "Historic score mapping for analytical evaluation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "skill": { "type": "string" },
+        "score": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "skill", "score", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Main registered candidate doc"
+    },
+    "/resumes/{resumeId}": {
+      "schema": "Resume",
+      "description": "Uploaded resume data"
+    },
+    "/aptitudeQuestions/{questionId}": {
+      "schema": "AptitudeQuestion",
+      "description": "Pre-seeded or AI generated multiple choice questions"
+    },
+    "/aptitudeAttempts/{attemptId}": {
+      "schema": "AptitudeAttempt",
+      "description": "Standardized multiple choice logs"
+    },
+    "/codingProblems/{problemId}": {
+      "schema": "CodingProblem",
+      "description": "Coding platform challenges"
+    },
+    "/codingSessions/{sessionId}": {
+      "schema": "CodingSession",
+      "description": "Submissions or saved progress inside coding IDE sandbox"
+    },
+    "/interviewSessions/{sessionId}": {
+      "schema": "InterviewSession",
+      "description": "Interactive mock chat interviews"
+    },
+    "/skillScores/{scoreId}": {
+      "schema": "SkillScore",
+      "description": "Evaluation matrix parameters"
+    }
+  }
+}

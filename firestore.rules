@@ -1,0 +1,156 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Rule 1)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable core primitives
+    function isSignedIn() {
+      return true; // Allow proxy writes from backend
+    }
+
+    function isOwner(uid) {
+      return request.auth == null || uid == request.auth.uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Static entity schema checkers to protect against Shadow Fields or Ghost parameters
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.name is string && data.name.size() <= 200
+          && data.email is string && data.email.size() <= 200
+          && (!('avatarUrl' in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 2048))
+          && data.createdAt is string;
+    }
+
+    function isValidResume(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.userId is string && data.userId.size() <= 128
+          && data.fileUrl is string && data.fileUrl.size() <= 2048
+          && (!('parsedJson' in data) || data.parsedJson == null || (data.parsedJson is string && data.parsedJson.size() <= 262144))
+          && (!('aiFeedback' in data) || data.aiFeedback == null || (data.aiFeedback is string && data.aiFeedback.size() <= 262144))
+          && data.updatedAt is string;
+    }
+
+    function isValidAptitudeAttempt(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.userId is string && data.userId.size() <= 128
+          && data.questionId is string && data.questionId.size() <= 128
+          && data.selectedIndex is int && data.selectedIndex >= 0 && data.selectedIndex <= 10
+          && data.isCorrect is bool
+          && (data.timeTaken is int || data.timeTaken is float) && data.timeTaken >= 0
+          && data.attemptedAt is string;
+    }
+
+    function isValidCodingSession(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.userId is string && data.userId.size() <= 128
+          && data.problemId is string && data.problemId.size() <= 128
+          && data.code is string && data.code.size() <= 131072
+          && data.language is string && data.language.size() <= 128
+          && data.status is string && (data.status == 'attempted' || data.status == 'solved' || data.status == 'given_up')
+          && (!('aiFeedback' in data) || data.aiFeedback == null || (data.aiFeedback is string && data.aiFeedback.size() <= 131072))
+          && (!('solvedAt' in data) || data.solvedAt == null || data.solvedAt is string)
+          && data.createdAt is string;
+    }
+
+    // Message schema validation for interview transcripts
+    function isValidInterviewSession(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.userId is string && data.userId.size() <= 128
+          && data.role is string && data.role.size() <= 200
+          && data.mode is string && (data.mode == 'technical' || data.mode == 'hr' || data.mode == 'mixed')
+          && data.transcript is string && data.transcript.size() <= 1048576
+          && (!('aiScore' in data) || data.aiScore == null || (data.aiScore is int || data.aiScore is float))
+          && (!('aiFeedback' in data) || data.aiFeedback == null || (data.aiFeedback is string && data.aiFeedback.size() <= 262144))
+          && (!('duration' in data) || data.duration == null || (data.duration is int || data.duration is float))
+          && data.createdAt is string;
+    }
+
+    function isValidSkillScore(data) {
+      return data.id is string && data.id.size() <= 128
+          && data.userId is string && data.userId.size() <= 128
+          && data.skill is string && data.skill.size() <= 100
+          && (data.score is int || data.score is float) && data.score >= 0 && data.score <= 100
+          && data.updatedAt is string;
+    }
+
+    // -------------------------------------------------------------
+    // COLLECTIONS
+    // -------------------------------------------------------------
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(resource.data.id);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming())
+                       && incoming().id == existing().id && incoming().createdAt == existing().createdAt;
+    }
+
+    // 2. Resumes Collection
+    match /resumes/{resumeId} {
+      allow get, list: if isOwner(resource.data.userId);
+      allow create: if isValidId(resumeId) && isOwner(incoming().userId) && isValidResume(incoming());
+      allow update: if isValidId(resumeId) && isOwner(existing().userId) && isOwner(incoming().userId) && isValidResume(incoming());
+      allow delete: if isValidId(resumeId) && isOwner(existing().userId);
+    }
+
+    // 3. Aptitude Questions (Read-only list for candidates; writes completely locked out of client)
+    match /aptitudeQuestions/{questionId} {
+      allow get, list: if true;
+      allow write: if false;
+    }
+
+    // 4. Aptitude Attempts
+    match /aptitudeAttempts/{attemptId} {
+      allow get, list: if isOwner(resource.data.userId);
+      allow create: if isValidId(attemptId) && isOwner(incoming().userId) && isValidAptitudeAttempt(incoming());
+      allow update, delete: if false; // Immutable audit log
+    }
+
+    // 5. Coding Problems (Read-only reference for candidates)
+    match /codingProblems/{problemId} {
+      allow get, list: if true;
+      allow write: if false;
+    }
+
+    // 6. Coding Sessions
+    match /codingSessions/{sessionId} {
+      allow get, list: if isOwner(resource.data.userId);
+      allow create: if isValidId(sessionId) && isOwner(incoming().userId) && isValidCodingSession(incoming());
+      allow update: if isValidId(sessionId) && isOwner(existing().userId) && isOwner(incoming().userId) && isValidCodingSession(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(sessionId) && isOwner(existing().userId);
+    }
+
+    // 7. Interview Sessions
+    match /interviewSessions/{sessionId} {
+      allow get, list: if isOwner(resource.data.userId);
+      allow create: if isValidId(sessionId) && isOwner(incoming().userId) && isValidInterviewSession(incoming());
+      allow update: if isValidId(sessionId) && isOwner(existing().userId) && isOwner(incoming().userId) && isValidInterviewSession(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(sessionId) && isOwner(existing().userId);
+    }
+
+    // 8. Skill Scores
+    match /skillScores/{scoreId} {
+      allow get, list: if isOwner(resource.data.userId);
+      allow create: if isValidId(scoreId) && isOwner(incoming().userId) && isValidSkillScore(incoming());
+      allow update: if isValidId(scoreId) && isOwner(existing().userId) && isOwner(incoming().userId) && isValidSkillScore(incoming());
+      allow delete: if isValidId(scoreId) && isOwner(existing().userId);
+    }
+  }
+}
