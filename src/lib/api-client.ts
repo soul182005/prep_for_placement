@@ -158,6 +158,17 @@ export const api = {
     return res.json();
   },
 
+  async getInterviewCoach(role: string, mode: "technical" | "hr" | "mixed", feedback: string, chatHistory: any[]) {
+    const res = await fetch(`${API_BASE}/interview/coach`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({ role, mode, feedback, chatHistory })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Coaching server error.");
+    return data;
+  },
+
   // Dashboard / Progress
   async getDashboard() {
     const res = await fetch(`${API_BASE}/progress/dashboard`, {

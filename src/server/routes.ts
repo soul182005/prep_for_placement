@@ -402,20 +402,19 @@ router.patch("/coding/sessions", authenticate, (req: Request, res: Response) => 
 // ==========================================
 // 5. MOCK INTERVIEW ROUTES
 // ==========================================
-router.post("/interview/start", authenticate, (req: Request, res: Response) => {
+router.post("/interview/start", authenticate, async (req: Request, res: Response) => {
   const { role, mode } = req.body;
   const user = (req as any).user as User;
 
   const resolvedRole = role || "Software Engineer Candidate";
   const resolvedMode = mode || "mixed";
 
-  const firstQueries = {
-    technical: `Hello! Welcome to your technical interviews for the '${resolvedRole}' role. I am your grader. Let's begin. Can you outline the difference between a Hashmap and a balanced Binary Search Tree, highlighting average runtime operations?`,
-    hr: `Hello there. Ready to begin your behavioural and culture-fit rounds? Let's start with a humble prompt: Could you describe a significant professional milestone you achieved, and how did you organize cross-functional members to deliver it?`,
-    mixed: `Welcome to the smart mixed interview grid. I will evaluate both raw code scaling design and corporate traits. To start off: describe a system you built, detail what databases were selected, and why.`
-  };
-
-  const startingQuestion = firstQueries[resolvedMode as keyof typeof firstQueries] || firstQueries.mixed;
+  let startingQuestion = "";
+  try {
+    startingQuestion = await AIService.getInterviewStartingQuestion(resolvedRole, resolvedMode as any);
+  } catch (err) {
+    startingQuestion = `Welcome to the mock interview for the '${resolvedRole}' role. Can you outline your primary engineering projects and how you handle performance optimization under heavy workloads?`;
+  }
 
   const session = db.createInterviewSession(user.id, resolvedRole, resolvedMode as any, startingQuestion);
 
@@ -501,6 +500,27 @@ router.get("/interview/history", authenticate, (req: Request, res: Response) => 
   const user = (req as any).user as User;
   const history = db.getInterviewSessions(user.id);
   res.json({ sessions: history });
+});
+
+router.post("/interview/coach", authenticate, async (req: Request, res: Response) => {
+  const { role, mode, feedback, chatHistory } = req.body;
+
+  if (!feedback || !chatHistory) {
+    return res.status(400).json({ error: "feedback text and chatHistory are required for interview prep coaching." });
+  }
+
+  try {
+    const reply = await AIService.getCoachingResponse(
+      role || "Software Engineer",
+      mode || "mixed",
+      feedback,
+      chatHistory
+    );
+
+    res.json({ reply });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Interview coaching agent error." });
+  }
 });
 
 
