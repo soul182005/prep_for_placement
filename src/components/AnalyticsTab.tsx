@@ -67,18 +67,10 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats }) => {
 
             <div className="w-full h-44 mt-4">
               <svg className="w-full h-full" viewBox="0 0 500 120" preserveAspectRatio="none">
-                {/* Y-axis Reference Labels & Guidelines */}
-                {/* 100% Marker */}
-                <text x="5" y="18" fill="#64748B" className="font-mono text-[7px] font-bold">100%</text>
-                <line x1="32" y1="15" x2="500" y2="15" stroke="#1E293B" strokeWidth="1" strokeDasharray="3,3" />
-
-                {/* 50% Marker */}
-                <text x="5" y="58" fill="#64748B" className="font-mono text-[7px] font-bold">50%</text>
-                <line x1="32" y1="55" x2="500" y2="55" stroke="#1E293B" strokeWidth="1" strokeDasharray="3,3" />
-
-                {/* 0% Marker / Baseline */}
-                <text x="5" y="98" fill="#475569" className="font-mono text-[7px] font-bold">0%</text>
-                <line x1="32" y1="95" x2="500" y2="95" stroke="#334155" strokeWidth="1" />
+                {/* Horizontal reference guidelines */}
+                <line x1="0" y1="20" x2="500" y2="20" stroke="#22314D" strokeWidth="1" strokeDasharray="4,4" />
+                <line x1="0" y1="60" x2="500" y2="60" stroke="#22314D" strokeWidth="1" strokeDasharray="4,4" />
+                <line x1="0" y1="100" x2="500" y2="100" stroke="#22314D" strokeWidth="1" />
 
                 {/* Score mapping trend vector line - dynamic coordinates linked to supervised performance */}
                 {(() => {
@@ -92,8 +84,8 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats }) => {
                     { label: "Today", score: 95 }
                   ];
 
-                  const xMin = 38;
-                  const xMax = 482;
+                  const xMin = 20;
+                  const xMax = 480;
                   const widthAvailable = xMax - xMin;
                   const numPoints = rawTimeline.length;
 
@@ -102,8 +94,7 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats }) => {
                       ? xMin + idx * (widthAvailable / (numPoints - 1))
                       : xMin + widthAvailable / 2;
                     const scoreBounded = Math.max(0, Math.min(100, item.score));
-                    // Map score 100% to y=15, and 0% to y=95 to prevent label clashing
-                    const y = 95 - (scoreBounded / 100) * 80;
+                    const y = 120 - scoreBounded;
                     return {
                       x,
                       y,
@@ -120,8 +111,8 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats }) => {
                       {/* Gradient Fill under trend */}
                       {points.length > 0 && (
                         <motion.polygon 
-                          points={`${points[0].x.toFixed(1)},95 ${pathStr} ${points[points.length - 1].x.toFixed(1)},95`} 
-                          fill="rgba(6, 182, 212, 0.05)" 
+                          points={`${points[0].x.toFixed(1)},110 ${pathStr} ${points[points.length - 1].x.toFixed(1)},110`} 
+                          fill="rgba(6, 182, 212, 0.04)" 
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ duration: 1, delay: 0.8 }}
@@ -160,8 +151,8 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats }) => {
                             x={p.x} 
                             y={p.y - 8} 
                             textAnchor="middle" 
-                            fill="#06B6D4" 
-                            className="font-mono text-[7px] font-bold"
+                            fill="#94A3B8" 
+                            className="font-mono text-[7px]"
                           >
                             {p.score}%
                           </text>

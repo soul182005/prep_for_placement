@@ -50,11 +50,11 @@ export const api = {
   },
 
   // Resume
-  async uploadResume(resumeText: string, fileName: string) {
+  async uploadResume(resumeText: string, fileName: string, isPdf = false) {
     const res = await fetch(`${API_BASE}/resume/upload`, {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({ resumeText, fileName })
+      body: JSON.stringify({ resumeText, fileName, isPdf })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "File parse error.");

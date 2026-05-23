@@ -92,19 +92,20 @@ router.get("/auth/me", authenticate, (req: Request, res: Response) => {
 // ==========================================
 // Handles reading uploaded resume text info and saving it
 router.post("/resume/upload", authenticate, async (req: Request, res: Response) => {
-  const { resumeText, fileName } = req.body;
+  const { resumeText, fileName, isPdf } = req.body;
   const user = (req as any).user as User;
 
   if (!resumeText) {
-    return res.status(400).json({ error: "Plaintext resume input payload is required." });
+    return res.status(400).json({ error: isPdf ? "PDF file payload is required." : "Plaintext resume input payload is required." });
   }
 
   try {
-    // 1. Instantly perform lazy-loaded server AI analysis on the text
-    const { parsedJson, aiFeedback, skillsToInject } = await AIService.analyzeResume(resumeText);
+    // 1. Instantly perform lazy-loaded server AI analysis on the text or PDF
+    const { parsedJson, aiFeedback, skillsToInject } = await AIService.analyzeResume(resumeText, !!isPdf);
 
     // 2. Save resume artifact in DB
-    const resume = db.upsertResume(user.id, `https://cloudinary.com/mock-upload/${user.id}/${fileName || "resume.pdf"}`, parsedJson, aiFeedback);
+    const resumeUrl = `https://mock-upload.local/${user.id}/${fileName || (isPdf ? "resume.pdf" : "resume.txt")}`;
+    const resume = db.upsertResume(user.id, resumeUrl, parsedJson, aiFeedback);
 
     // 3. Re-score the candidate metrics dynamically based on actual progress
     db.recalculateUserSkillScores(user.id);
@@ -626,38 +627,17 @@ router.get("/progress/dashboard", authenticate, (req: Request, res: Response) =>
   // Compile performance timeline for supervised progress
   const events: Array<{ timestamp: string; type: string; score: number; label: string }> = [];
 
-  // 1. Aptitude quiz accuracy grouped by test session (questions within 10 minutes)
+  // 1. Aptitude quiz accuracy over time
   const sortedAptitude = [...aptitudeAttempts].sort((a, b) => new Date(a.attemptedAt).getTime() - new Date(b.attemptedAt).getTime());
-  
-  interface QuizGroup {
-    timestamp: string;
-    attempts: typeof aptitudeAttempts;
-  }
-  
-  const quizGroups: QuizGroup[] = [];
-  sortedAptitude.forEach(attempt => {
-    const attemptTime = new Date(attempt.attemptedAt).getTime();
-    const existingGroup = quizGroups.find(g => Math.abs(new Date(g.timestamp).getTime() - attemptTime) < 10 * 60 * 1000);
-    if (existingGroup) {
-      existingGroup.attempts.push(attempt);
-    } else {
-      quizGroups.push({
-        timestamp: attempt.attemptedAt,
-        attempts: [attempt]
-      });
-    }
-  });
-
-  quizGroups.forEach((group, index) => {
-    const correctCount = group.attempts.filter(a => a.isCorrect).length;
-    const totalCount = group.attempts.length;
-    const quizAccuracy = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
-    
+  let correctCount = 0;
+  sortedAptitude.forEach((attempt, index) => {
+    if (attempt.isCorrect) correctCount++;
+    const cumulativeAccuracy = Math.round((correctCount / (index + 1)) * 100);
     events.push({
-      timestamp: group.timestamp,
+      timestamp: attempt.attemptedAt,
       type: "aptitude",
-      score: Math.max(10, Math.min(100, quizAccuracy)),
-      label: `Quiz ${index + 1}`
+      score: Math.max(10, Math.min(100, cumulativeAccuracy)),
+      label: `Quiz Q${index + 1}`
     });
   });
 
@@ -676,11 +656,8 @@ router.get("/progress/dashboard", authenticate, (req: Request, res: Response) =>
     });
   });
 
-  // 3. Interview session score over time (only filter for completed, evaluated rounds)
-  const sortedInterviews = [...interviewSessions]
-    .filter(session => session.aiScore !== null && session.aiScore !== undefined)
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
+  // 3. Interview session score over time
+  const sortedInterviews = [...interviewSessions].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   sortedInterviews.forEach((session, index) => {
     const score = session.aiScore || 70;
     events.push({

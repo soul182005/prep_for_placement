@@ -24,15 +24,43 @@ function getAIClient(): GoogleGenAI {
 
 export class AIService {
   /**
-   * Generates feedback on a resume text.
+   * Generates feedback on a resume text or PDF.
    */
-  static async analyzeResume(resumeText: string): Promise<{
+  static async analyzeResume(resumeText: string, isPdf = false): Promise<{
     parsedJson: any;
     aiFeedback: string;
     skillsToInject: string[];
   }> {
     const hasKey = !!process.env.GEMINI_API_KEY;
     if (!hasKey) {
+      if (isPdf) {
+        return {
+          parsedJson: JSON.stringify({
+            skills: ["React", "TypeScript", "Node.js", "Express", "Tailwind CSS", "PDF Document Design"],
+            yearsOfExperience: "College Finalist",
+            topProjects: ["Full-Stack App", "Interactive Dashboard", "PDF Resume Viewer"]
+          }),
+          aiFeedback: `### Resume Review Report (PDF Analyzed - Dry Run Fallback)
+**Summary**: Decent visual layout and core languages list extracted from the uploaded PDF document during dry-run testing.
+
+**Strengths**:
+- Strong base in Web Tech (React, TS)
+- PDF formatted professionally with clear section headers
+- Clean and consistent margins and typographical scale
+
+**Weaknesses**:
+- Missing specific performance indicators (e.g., % speed improvements)
+- Summary is somewhat generic
+- Lack of cloud-deployment references
+
+**Suggestions**:
+- Quantify accomplishments: instead of "built dashboard", write "designed real-time dashboard that reduced API overhead by 15%"
+- Add a dedicated technical section for databases and compilers
+- Tailor the summary to target software engineering entry-roles specifically`,
+          skillsToInject: ["React", "TypeScript", "Node.js", "Express"]
+        };
+      }
+
       // Mock helper to allow local testing if no API key is specified initially
       return {
         parsedJson: JSON.stringify({
@@ -63,59 +91,120 @@ export class AIService {
 
     try {
       const ai = getAIClient();
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: `Analyze this student resume for engineering entry-level roles. Match it carefully to find technical skills, experience metrics, and suggest areas of improvement.
+      let response;
+
+      if (isPdf) {
+        const base64Data = resumeText.split(";base64,").pop() || resumeText;
+        const pdfPart = {
+          inlineData: {
+            mimeType: "application/pdf",
+            data: base64Data
+          }
+        };
+        const textPart = {
+          text: "Analyze this student resume PDF for engineering entry-level roles. Match it carefully to find technical skills, experience metrics, layout consistency, and suggest areas of improvement."
+        };
+        response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: { parts: [pdfPart, textPart] },
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                skills: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Extracted programming languages, frameworks, or technical tools."
+                },
+                yearsOfExperience: {
+                  type: Type.STRING,
+                  description: "Duration of projects or internships (e.g. 'College Graduate' or '1 Year')"
+                },
+                topProjects: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Titles of primary projects extracted."
+                },
+                summary: {
+                  type: Type.STRING,
+                  description: "Two-sentence professional profile summary of the candidate's core value."
+                },
+                strengths: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Exactly 3 bullet strengths of this resume."
+                },
+                weaknesses: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Exactly 3 bullet weaknesses of this resume."
+                },
+                suggestions: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Exactly 3 actionable suggestions to optimize this resume."
+                }
+              },
+              required: ["skills", "yearsOfExperience", "topProjects", "summary", "strengths", "weaknesses", "suggestions"]
+            }
+          }
+        });
+      } else {
+        response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: `Analyze this student resume for engineering entry-level roles. Match it carefully to find technical skills, experience metrics, and suggest areas of improvement.
 
 Resume text:
 ${resumeText}`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              skills: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Extracted programming languages, frameworks, or technical tools."
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                skills: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Extracted programming languages, frameworks, or technical tools."
+                },
+                yearsOfExperience: {
+                  type: Type.STRING,
+                  description: "Duration of projects or internships (e.g. 'College Graduate' or '1 Year')"
+                },
+                topProjects: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Titles of primary projects extracted."
+                },
+                summary: {
+                  type: Type.STRING,
+                  description: "Two-sentence professional profile summary of the candidate's core value."
+                },
+                strengths: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Exactly 3 bullet strengths of this resume."
+                },
+                weaknesses: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Exactly 3 bullet weaknesses of this resume."
+                },
+                suggestions: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Exactly 3 actionable suggestions to optimize this resume."
+                }
               },
-              yearsOfExperience: {
-                type: Type.STRING,
-                description: "Duration of projects or internships (e.g. 'College Graduate' or '1 Year')"
-              },
-              topProjects: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Titles of primary projects extracted."
-              },
-              summary: {
-                type: Type.STRING,
-                description: "Two-sentence professional profile summary of the candidate's core value."
-              },
-              strengths: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Exactly 3 bullet strengths of this resume."
-              },
-              weaknesses: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Exactly 3 bullet weaknesses of this resume."
-              },
-              suggestions: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Exactly 3 actionable suggestions to optimize this resume."
-              }
-            },
-            required: ["skills", "yearsOfExperience", "topProjects", "summary", "strengths", "weaknesses", "suggestions"]
+              required: ["skills", "yearsOfExperience", "topProjects", "summary", "strengths", "weaknesses", "suggestions"]
+            }
           }
-        }
-      });
+        });
+      }
 
       const parsed = JSON.parse(response.text || "{}");
       
-      const formattedFeedback = `### Resume Review Report
+      const formattedFeedback = `### Resume Review Report${isPdf ? " (PDF Analyzed)" : ""}
 **Summary**: ${parsed.summary || "Extracted Candidate Resume."}
 
 **Strengths**:
@@ -138,7 +227,7 @@ ${(parsed.suggestions || []).map((g: string) => `- ${g}`).join("\n")}`;
       };
     } catch (err) {
       console.error("AI analyzeResume failed, falling back:", err);
-      return this.analyzeResume(""); // Returns safe mock
+      return this.analyzeResume("", isPdf); // Returns safe mock
     }
   }
 

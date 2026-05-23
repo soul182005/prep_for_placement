@@ -10,8 +10,9 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-// Parsers for application/json payloads
-app.use(express.json());
+// Parsers for application/json payloads with generous payload size limits
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ limit: "25mb", extended: true }));
 
 // Expose API routes first
 app.use("/api/v1", apiRouter);
